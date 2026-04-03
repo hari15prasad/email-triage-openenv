@@ -6,6 +6,14 @@ colorTo: green
 sdk: docker
 pinned: false
 ---
+---
+title: Email Triage OpenEnv
+emoji: ??
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
 # 📬 Email Triage OpenEnv
 
 A real-world **email triage environment** for training and evaluating AI agents, built to the full [OpenEnv](https://openenv.ai) specification.
@@ -312,4 +320,5 @@ email-triage-openenv/
 ## Tags
 
 `openenv` `email` `triage` `nlp` `classification` `customer-support` `agent-evaluation`
+
 
