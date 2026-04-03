@@ -1,0 +1,97 @@
+name: email-triage-openenv
+version: "1.0.0"
+description: >
+  A real-world email triage environment where an AI agent reads incoming emails
+  and must assign correct priority levels, categories, and optionally draft
+  professional reply snippets. Simulates the daily workflow of a support triage
+  specialist or executive assistant.
+
+author: email-triage-openenv
+tags:
+  - openenv
+  - email
+  - triage
+  - nlp
+  - classification
+  - customer-support
+
+tasks:
+  - id: easy
+    description: "5 clearly distinct emails with obvious priority and category signals."
+    difficulty: easy
+    max_steps: 5
+    success_threshold: 0.75
+
+  - id: medium
+    description: "8 nuanced emails requiring careful reading and reasoning."
+    difficulty: medium
+    max_steps: 8
+    success_threshold: 0.65
+
+  - id: hard
+    description: "10 complex, ambiguous emails requiring response drafts."
+    difficulty: hard
+    max_steps: 10
+    success_threshold: 0.55
+
+observation_space:
+  type: object
+  fields:
+    current_email:
+      type: object
+      description: "The current email to triage (id, sender, subject, body, timestamp)"
+    inbox_size:
+      type: integer
+      description: "Total emails in the inbox for this episode"
+    processed_count:
+      type: integer
+      description: "Number of emails already processed"
+    last_action_feedback:
+      type: string
+      description: "Feedback string from the previous step"
+    task_name:
+      type: string
+      description: "Current task identifier (easy/medium/hard)"
+    task_description:
+      type: string
+      description: "Human-readable task description"
+    step_number:
+      type: integer
+      description: "Current step number"
+
+action_space:
+  type: object
+  fields:
+    priority:
+      type: string
+      enum: [urgent, high, normal, low]
+      description: "Priority level assigned to the email"
+    category:
+      type: string
+      enum: [bug_report, feature_request, billing, general_inquiry, spam, internal, security]
+      description: "Category assigned to the email"
+    response_draft:
+      type: string
+      description: "Optional short reply draft (required for hard task)"
+    reasoning:
+      type: string
+      description: "Brief explanation of the priority/category assignment"
+
+reward:
+  type: float
+  range: [0.0, 1.0]
+  description: >
+    Per-step reward composed of: priority accuracy (weighted by task),
+    category accuracy, and response quality. Partial credit given for
+    near-miss priority levels.
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  health: GET /health
+
+docker:
+  base_image: python:3.11-slim
+  port: 7860
+  health_check: GET /health
