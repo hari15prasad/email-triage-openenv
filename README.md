@@ -1,5 +1,12 @@
 ---
 title: Email Triage OpenEnv
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+---
+title: Email Triage OpenEnv
 emoji: ??
 colorFrom: blue
 colorTo: green
@@ -320,5 +327,6 @@ email-triage-openenv/
 ## Tags
 
 `openenv` `email` `triage` `nlp` `classification` `customer-support` `agent-evaluation`
+
 
 
