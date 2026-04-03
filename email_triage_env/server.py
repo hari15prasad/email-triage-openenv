@@ -55,6 +55,23 @@ class StepRequest(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok", "env": "email-triage-openenv", "version": "1.0.0"}
+    @app.get("/")
+def root():
+    return {
+        "name": "Email Triage OpenEnv",
+        "version": "1.0.0",
+        "description": "Real-world email triage environment for training and evaluating AI agents.",
+        "endpoints": {
+            "health": "GET /health",
+            "tasks": "GET /tasks",
+            "reset": "POST /reset",
+            "step": "POST /step",
+            "state": "GET /state",
+            "score": "GET /score",
+            "docs": "GET /docs"
+        },
+        "huggingface": "https://huggingface.co/spaces/Hari15prasad/email-triage-openenv"
+    }
 
 
 @app.get("/tasks")
