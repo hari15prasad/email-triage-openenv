@@ -51,11 +51,12 @@ class StepRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
-
 @app.get("/health")
 def health():
     return {"status": "ok", "env": "email-triage-openenv", "version": "1.0.0"}
-    @app.get("/")
+
+
+@app.get("/")
 def root():
     return {
         "name": "Email Triage OpenEnv",
