@@ -59,21 +59,36 @@ def health():
 @app.get("/")
 def root():
     return {
-        "name": "Email Triage OpenEnv",
-        "version": "1.0.0",
-        "description": "Real-world email triage environment for training and evaluating AI agents.",
-        "endpoints": {
-            "health": "GET /health",
-            "tasks": "GET /tasks",
-            "reset": "POST /reset",
-            "step": "POST /step",
-            "state": "GET /state",
-            "score": "GET /score",
-            "docs": "GET /docs"
+        "🚀 welcome": "Email Triage OpenEnv is live!",
+        "📬 what_is_this": (
+            "A real-world AI environment where agents learn to triage emails — "
+            "assigning priority, category, and drafting replies across 3 difficulty levels."
+        ),
+        "📊 tasks": {
+            "easy": "5 emails — obvious signals, perfect for warm-up",
+            "medium": "8 emails — nuanced, requires careful reading",
+            "hard": "10 emails — ambiguous, overlapping signals, response required"
         },
-        "huggingface": "https://huggingface.co/spaces/Hari15prasad/email-triage-openenv"
+        "🎯 best_score": {
+            "model": "llama-3.3-70b-versatile",
+            "easy": 0.94,
+            "medium": 0.89,
+            "hard": 0.83,
+            "overall": 0.89
+        },
+        "🔗 endpoints": {
+            "health":  "GET  /health",
+            "tasks":   "GET  /tasks",
+            "reset":   "POST /reset",
+            "step":    "POST /step",
+            "state":   "GET  /state",
+            "score":   "GET  /score",
+            "docs":    "GET  /docs  ← interactive API explorer"
+        },
+        "📦 built_with": ["FastAPI", "OpenEnv", "Pydantic", "Groq", "HuggingFace Spaces"],
+        "👤 author": "Hari15prasad",
+        "🏆 hackathon": "Scaler x Meta x PyTorch — OpenEnv Round 1"
     }
-
 
 @app.get("/tasks")
 def list_tasks():
