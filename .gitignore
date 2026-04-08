@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Logs
+*.log
+diag.log
+inference_final.log
+inference_llama.log
+output.log
+
+# Temporary result files
+inference_result.txt
+inference_result_utf8.txt

@@ -29,18 +29,22 @@ from openai import OpenAI
 # Configuration — matches Scaler pre-submission checklist exactly
 # API_BASE_URL and MODEL_NAME have defaults, HF_TOKEN does NOT
 # ---------------------------------------------------------------------------
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+# Default LLM configuration
+API_BASE_URL = os.getenv("API_BASE_URL", "https://openrouter.ai/api/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "nvidia/nemotron-3-super-120b-a12b:free")
 HF_TOKEN = os.getenv("HF_TOKEN")
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # optional
+OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# For local testing: if HF_TOKEN not set, use fallback key
-API_KEY = HF_TOKEN if HF_TOKEN else "gsk_your_fresh_key_here"
+# Set API Key based on available environment variables
+# This will use the HF_TOKEN if available, otherwise falls back to OpenRouter key
+API_KEY = HF_TOKEN if HF_TOKEN else OPENROUTER_KEY
+if not API_KEY:
+    API_KEY = "dummy_key"
 
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
 
 TEMPERATURE = 0.0
-MAX_TOKENS = 512
+MAX_TOKENS = 1024 # Increased from 512 to prevent JSON cutoff errors
 MAX_STEPS = 12
 
 TASKS = ["easy", "medium", "hard"]
@@ -106,6 +110,10 @@ Triage this email. Output JSON only."""
             ],
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
+            extra_headers={
+                "HTTP-Referer": "https://openenv.ai", # Optional for OpenRouter
+                "X-Title": "Email Triage Benchmark",  # Optional for OpenRouter
+            }
         )
         text = (completion.choices[0].message.content or "").strip()
         if text.startswith("```"):
@@ -125,7 +133,7 @@ Triage this email. Output JSON only."""
 
 def run_task(task):
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    http = httpx.Client(base_url=ENV_BASE_URL, timeout=30.0)
+    http = httpx.Client(base_url=ENV_BASE_URL, timeout=120.0) # Increased timeout for free models
     rewards = []
     steps_taken = 0
     log_start(task=task, env=BENCHMARK, model=MODEL_NAME)
@@ -178,8 +186,8 @@ def main():
     print("FINAL RESULTS:", flush=True)
     overall = sum(r["score"] for r in results) / len(results)
     for r in results:
-        status = "✓" if r["success"] else "✗"
-        print(f"  {status} {r['task']:8s}  score={r['score']:.4f}  steps={r['steps']}", flush=True)
+        status = "PASS" if r["success"] else "FAIL"
+        print(f"  [{status}] {r['task']:8s}  score={r['score']:.4f}  steps={r['steps']}", flush=True)
     print(f"\n  Overall mean score: {overall:.4f}", flush=True)
     print(f"{'='*60}\n", flush=True)
 
