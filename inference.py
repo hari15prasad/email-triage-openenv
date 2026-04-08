@@ -47,13 +47,13 @@ TASKS = ["easy", "medium", "hard"]
 BENCHMARK = "email-triage-openenv"
 
 def log_start(task, env, model):
-    print(json.dumps({"type": "[START]", "task": task, "env": env, "model": model, "timestamp": time.time()}), flush=True)
+    print(f"[START] task={task}", flush=True)
 
 def log_step(step, action, reward, done, error):
-    print(json.dumps({"type": "[STEP]", "step": step, "action": action, "reward": reward, "done": done, "error": error}), flush=True)
+    print(f"[STEP] step={step} reward={reward}", flush=True)
 
-def log_end(success, steps, score, rewards):
-    print(json.dumps({"type": "[END]", "success": success, "steps": steps, "score": score, "rewards": rewards}), flush=True)
+def log_end(task, success, steps, score, rewards):
+    print(f"[END] task={task} score={score} steps={steps}", flush=True)
 
 SYSTEM_PROMPT = """You are an expert email triage specialist. 
 For each email you receive, output a JSON object with exactly these fields:
@@ -158,7 +158,7 @@ def run_task(task):
         http.close()
     score = min(max(sum(rewards) / len(rewards) if rewards else 0.0, 0.0), 1.0)
     success = score >= 0.6
-    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+    log_end(task=task, success=success, steps=steps_taken, score=score, rewards=rewards)
     return {"task": task, "score": score, "steps": steps_taken, "success": success}
 
 
