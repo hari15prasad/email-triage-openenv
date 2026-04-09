@@ -1,19 +1,23 @@
 """
 inference.py — Baseline inference script for Email Triage OpenEnv.
 
-Runs an LLM agent against all 3 tasks (easy, medium, hard) and produces
-reproducible scores in the OpenEnv [START] / [STEP] / [END] log format.
-
 Usage:
+    # Option A — Groq
     export API_BASE_URL="https://api.groq.com/openai/v1"
     export MODEL_NAME="llama-3.3-70b-versatile"
-    export HF_TOKEN="gsk_..."
+    export HF_TOKEN="<your_groq_api_key>"
+
+    # Option B — OpenRouter
+    export API_BASE_URL="https://openrouter.ai/api/v1"
+    export MODEL_NAME="meta-llama/llama-3.3-70b-instruct"
+    export HF_TOKEN="<your_openrouter_api_key>"
+
     python inference.py
 
 Environment variables:
-    API_BASE_URL     — LLM API endpoint (OpenAI-compatible)
-    MODEL_NAME       — model identifier
-    HF_TOKEN         — your Groq / Hugging Face API key (no default)
+    API_BASE_URL     — OpenAI-compatible LLM API endpoint
+    MODEL_NAME       — model identifier string
+    HF_TOKEN         — API key for the chosen provider
     LOCAL_IMAGE_NAME — optional, used when running via from_docker_image()
 """
 import json
@@ -26,36 +30,52 @@ import httpx
 from openai import OpenAI
 
 # ---------------------------------------------------------------------------
-# Configuration — matches Scaler pre-submission checklist exactly
-# API_BASE_URL and MODEL_NAME have defaults, HF_TOKEN does NOT
+# Configuration — reads from environment variables
+# API_BASE_URL and MODEL_NAME have sensible defaults
+# HF_TOKEN has NO default (judges must supply their own key)
 # ---------------------------------------------------------------------------
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-HF_TOKEN = os.getenv("HF_TOKEN")
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # optional
+API_BASE_URL     = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
+MODEL_NAME       = os.getenv("MODEL_NAME",   "llama-3.3-70b-versatile")
+HF_TOKEN         = os.getenv("HF_TOKEN", "")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
-# For local testing: if HF_TOKEN not set, use fallback key
-API_KEY = HF_TOKEN if HF_TOKEN else "gsk_your_fresh_key_here"
+OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")
+if "openrouter.ai" in API_BASE_URL:
+    API_KEY = OPENROUTER_KEY or HF_TOKEN
+else:
+    API_KEY = HF_TOKEN or OPENROUTER_KEY
+
+# No sys.exit — always run and print structured output
+if not API_KEY:
+    API_KEY = "dummy"
 
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
-
 TEMPERATURE = 0.0
-MAX_TOKENS = 512
-MAX_STEPS = 12
+MAX_TOKENS  = 512
+MAX_STEPS   = 12
 
-TASKS = ["easy", "medium", "hard"]
+TASKS     = ["easy", "medium", "hard"]
 BENCHMARK = "email-triage-openenv"
 
+# ---------------------------------------------------------------------------
+# Structured log helpers — plain text format required by Scaler
+# ---------------------------------------------------------------------------
+
 def log_start(task, env, model):
-    print(json.dumps({"type": "[START]", "task": task, "env": env, "model": model, "timestamp": time.time()}), flush=True)
+    print(f"[START] task={task}", flush=True)
 
 def log_step(step, action, reward, done, error):
-    print(json.dumps({"type": "[STEP]", "step": step, "action": action, "reward": reward, "done": done, "error": error}), flush=True)
+    print(f"[STEP] step={step} reward={reward}", flush=True)
 
-def log_end(success, steps, score, rewards):
-    print(json.dumps({"type": "[END]", "success": success, "steps": steps, "score": score, "rewards": rewards}), flush=True)
+def log_end(task, success, steps, score, rewards):
+    print(f"[END] task={task} score={score} steps={steps}", flush=True)
 
-SYSTEM_PROMPT = """You are an expert email triage specialist. 
+
+# ---------------------------------------------------------------------------
+# System prompt
+# ---------------------------------------------------------------------------
+
+SYSTEM_PROMPT = """You are an expert email triage specialist.
 For each email you receive, output a JSON object with exactly these fields:
 {
   "priority": "<urgent|high|normal|low>",
@@ -147,7 +167,10 @@ def run_task(task):
             done = step_data.get("done", False)
             obs = step_data.get("observation", obs)
             rewards.append(reward)
-            history.append(f"Step {step}: priority={action.get('priority')}, category={action.get('category')}, reward={reward:.3f}")
+            history.append(
+                f"Step {step}: priority={action.get('priority')}, "
+                f"category={action.get('category')}, reward={reward:.3f}"
+            )
             log_step(step=step, action=action, reward=reward, done=done, error=None)
             if done:
                 break
@@ -158,11 +181,12 @@ def run_task(task):
         http.close()
     score = min(max(sum(rewards) / len(rewards) if rewards else 0.0, 0.0), 1.0)
     success = score >= 0.6
-    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+    log_end(task=task, success=success, steps=steps_taken, score=score, rewards=rewards)
     return {"task": task, "score": score, "steps": steps_taken, "success": success}
 
 
 def main():
+    start_time = time.time()
     print(f"\n{'='*60}", flush=True)
     print(f"Email Triage OpenEnv — Baseline Inference", flush=True)
     print(f"Model: {MODEL_NAME}", flush=True)
@@ -173,14 +197,19 @@ def main():
         print(f"\n--- Running task: {task.upper()} ---\n", flush=True)
         result = run_task(task)
         results.append(result)
-        print(f"\n>>> Task '{task}' score: {result['score']:.4f} | success: {result['success']}\n", flush=True)
+        print(
+            f"\n>>> Task '{task}' score: {result['score']:.4f} | success: {result['success']}\n",
+            flush=True,
+        )
     print(f"\n{'='*60}", flush=True)
     print("FINAL RESULTS:", flush=True)
     overall = sum(r["score"] for r in results) / len(results)
     for r in results:
-        status = "✓" if r["success"] else "✗"
+        status = "PASS" if r["success"] else "FAIL"
         print(f"  {status} {r['task']:8s}  score={r['score']:.4f}  steps={r['steps']}", flush=True)
     print(f"\n  Overall mean score: {overall:.4f}", flush=True)
+    total_time = time.time() - start_time
+    print(f"  Total time taken: {total_time:.2f} seconds", flush=True)
     print(f"{'='*60}\n", flush=True)
 
 
