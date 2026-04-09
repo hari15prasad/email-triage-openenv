@@ -5,328 +5,252 @@ colorTo: green
 sdk: docker
 pinned: false
 ---
----
-title: Email Triage OpenEnv
-emoji: ??
-colorFrom: blue
-colorTo: green
-sdk: docker
-pinned: false
----
----
-title: Email Triage OpenEnv
-emoji: ??
-colorFrom: blue
-colorTo: green
-sdk: docker
-pinned: false
----
-# 📬 Email Triage OpenEnv
 
-A real-world **email triage environment** for training and evaluating AI agents, built to the full [OpenEnv](https://openenv.ai) specification.
+# 📬 Email Triage AI — OpenEnv Environment
 
-> **Domain:** Customer support / operations  
-> **Task type:** Sequential classification + response generation  
-> **Difficulty range:** Easy → Medium → Hard  
-> **Reward signal:** Continuous, partial-credit per step  
+> A real-world AI environment where agents learn to triage emails like a professional support specialist — assigning priority, category, and drafting replies across 3 difficulty levels.
+
+**Built for Scaler x Meta x PyTorch OpenEnv Hackathon — Round 1**
+
+🔗 **Live Demo:** [huggingface.co/spaces/Hari15prasad/email-triage-openenv](https://huggingface.co/spaces/Hari15prasad/email-triage-openenv)
 
 ---
 
-## Why Email Triage?
+## 🚨 Problem
 
-Email triage is one of the highest-volume cognitive tasks in modern organizations. Support specialists, executive assistants, and operations teams spend hours each day deciding:
+Every company receives hundreds of emails daily. Support teams waste hours manually:
+- Deciding which emails are **urgent vs low priority**
+- Routing emails to the **right department**
+- Drafting **professional replies** under time pressure
 
-1. **How urgent is this?** (Priority: urgent / high / normal / low)
-2. **What kind of email is this?** (Category: bug_report / billing / security / etc.)
-3. **What's the right first response?** (Draft a 1–3 sentence reply)
-
-This is a genuine bottleneck — companies lose revenue to slow response times, miss security alerts buried in noise, and escalate low-priority emails unnecessarily. An agent that can triage accurately provides immediate operational value.
-
----
-
-## Environment Overview
-
-The agent receives one email per step. For each email it must produce:
-
-| Field | Type | Required |
-|---|---|---|
-| `priority` | `urgent \| high \| normal \| low` | Always |
-| `category` | `bug_report \| feature_request \| billing \| general_inquiry \| spam \| internal \| security` | Always |
-| `response_draft` | string (1–3 sentences) | Hard task only |
-| `reasoning` | string | Optional |
+**Result:** Slow response times, missed critical issues, revenue loss.
 
 ---
 
-## Observation Space
+## 💡 Solution
 
-```json
-{
-  "current_email": {
-    "id": "e1",
-    "sender": "alice@bigclient.com",
-    "subject": "Critical production bug — dashboard not loading for 500 users",
-    "body": "Hi support team, our entire analytics dashboard...",
-    "timestamp": "2024-01-15T09:15:00Z"
-  },
-  "inbox_size": 5,
-  "processed_count": 0,
-  "last_action_feedback": "✓ Priority 'urgent' is correct. | ✓ Category 'bug_report' is correct.",
-  "task_name": "easy",
-  "task_description": "EASY TASK: Triage a small inbox of 5 clearly distinct emails...",
-  "step_number": 1
-}
+An OpenEnv-compliant RL environment that trains AI agents to:
+1. **Read** incoming emails
+2. **Classify** priority (urgent / high / normal / low)
+3. **Categorize** type (bug_report / billing / security / spam / etc.)
+4. **Draft** a professional reply (required on hard tasks)
+
+Agents receive **partial credit rewards** at every step — enabling continuous learning, not just binary success/failure.
+
+---
+
+## 🏆 Baseline Scores
+
+| Model | Easy | Medium | Hard | Overall |
+|---|---|---|---|---|
+| llama-3.3-70b-versatile | **1.00** | **0.89** | **0.84** | **0.91** 🥇 |
+| llama-3.1-8b-instant | 0.84 | 0.53 | 0.69 | 0.69 |
+
+---
+
+## ⚙️ Architecture
+
+```
+Agent (LLM)
+    │
+    ▼
+inference.py  ──── POST /reset ────▶  EmailTriageEnv
+    │          ◀── Observation ──────      │
+    │                                      │
+    ├── GET agent action (LLM call)        ├── dataset.py  (23 real emails)
+    │                                      ├── graders.py  (deterministic scoring)
+    └── POST /step ────────────────▶       └── models.py   (Pydantic types)
+        ◀── reward, done, info ──────
 ```
 
-**Note:** Ground-truth labels (`priority_label`, `category_label`) are **never** exposed to the agent — they are used only by the grader internally.
-
----
-
-## Action Space
-
-```json
-{
-  "priority": "urgent",
-  "category": "bug_report",
-  "response_draft": "Our engineering team is investigating immediately and will update you within 30 minutes.",
-  "reasoning": "Production down with 500 affected users, from an enterprise client — highest priority."
-}
+```
+User Request
+    │
+    ▼
+FastAPI Server (port 7860)
+    ├── GET  /health    → status check
+    ├── GET  /tasks     → list 3 tasks
+    ├── POST /reset     → start episode
+    ├── POST /step      → submit action
+    ├── GET  /state     → current state
+    └── GET  /score     → episode score
 ```
 
 ---
 
-## Tasks
+## 🎯 Key Features
 
-### Task 1: Easy (`task="easy"`)
-- **5 emails** with clear, unambiguous signals
-- Examples: obvious spam, CEO all-hands, pricing inquiry, production outage
-- **Grader weights:** priority 50% + category 50%
-- **Success threshold:** ≥ 0.75
-
-### Task 2: Medium (`task="medium"`)
-- **8 emails** with more nuanced signals
-- Examples: AWS security alert (security vs. billing?), contractor delay (internal vs. bug?), API rate limit request (feature vs. billing?)
-- **Grader weights:** priority 45% + category 45% + response quality 10%
-- **Success threshold:** ≥ 0.65
-
-### Task 3: Hard (`task="hard"`)
-- **10 emails** with overlapping signals, legal/security urgency, ambiguous categories
-- Examples: legal notice, bug bounty report, press inquiry about breach, CTO escalation
-- Response draft is **mandatory** — missing it scores 0 for that component
-- **Grader weights:** priority 35% + category 40% + response quality 25%
-- **Success threshold:** ≥ 0.55
+- **3 difficulty levels** — Easy (5 emails) → Medium (8 emails) → Hard (10 emails)
+- **Partial credit rewards** — priority is an ordered scale, near-misses get partial score
+- **23 curated real-world emails** — spam, security alerts, legal notices, production outages
+- **Deterministic graders** — same input always produces same score
+- **Ground-truth hidden** — agent never sees labels, only the email content
+- **Response drafts evaluated** — hard task requires professional reply drafts
+- **Full OpenEnv spec** — step() / reset() / state() / openenv.yaml
 
 ---
 
-## Reward Function
+## 🤖 AI Stack
 
-The reward function provides **partial credit across the full trajectory** — not a sparse end-of-episode signal.
+```
+LLM Provider:     Groq (OpenAI-compatible API)
+Model:            meta-llama/llama-3.3-70b (via llama-3.3-70b-versatile)
+Embeddings:       None — pure zero-shot prompting
+Classification:   LLM JSON output → deterministic grader
+Reward Signal:    Partial credit (priority distance + category match + response quality)
+Framework:        OpenEnv by Meta & Hugging Face
+```
 
-### Priority scoring (partial credit)
-Priority levels form an ordered scale: `low → normal → high → urgent`
+**Why this works:** The LLM reads email context and reasons about urgency signals, sender patterns, and business impact — exactly like a trained support specialist would.
 
-| Distance from correct | Score |
+---
+
+## 📊 Task Design
+
+### Easy Task (5 emails)
+Clear, unambiguous signals:
+- 🎉 Obvious spam (FREE iPhone scam)
+- 📢 CEO all-hands mandatory meeting
+- 💳 Standard pricing inquiry
+- 🔥 Production outage (500 users down)
+- 📰 Tech newsletter
+
+### Medium Task (8 emails)
+Requires careful reading:
+- AWS security alert (security vs. general?)
+- Contractor delay (internal vs. bug?)
+- API rate limit (feature vs. billing?)
+- Cold outreach (spam vs. general?)
+
+### Hard Task (10 emails)
+Overlapping signals + mandatory response drafts:
+- Legal copyright notice
+- Bug bounty disclosure
+- Press inquiry about data breach
+- CTO escalation with board deadline
+- Payment failure with account suspension threat
+
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
 |---|---|
-| 0 (exact match) | 1.0 |
-| 1 level off | 0.4 |
-| 2 levels off | 0.1 |
-| 3 levels off | 0.0 |
-
-This means an agent that gets the direction right (urgent vs. low is wrong, but urgent vs. high is close) receives meaningful feedback.
-
-### Category scoring
-Exact match only (0.0 or 1.0) — categories are discrete and non-adjacent.
-
-### Response quality scoring (medium/hard)
-Assessed heuristically across:
-- Presence and appropriate length (20–500 chars)
-- Professional tone signals ("thank", "understand", "our team", etc.)
-- Contextual relevance (does it reference the email's actual content?)
-
-### Example per-step rewards
-```
-spam email, correct priority+category:     reward = 1.000
-spam email, 1 level off priority:          reward = 0.700
-urgent email, completely wrong everything: reward = 0.000
-hard task, correct + good response:        reward = 0.850
-hard task, correct but no response:        reward = 0.750
-```
+| Environment API | FastAPI + Uvicorn |
+| Data Models | Pydantic v2 |
+| LLM Client | OpenAI SDK (compatible with Groq, OpenRouter) |
+| HTTP Client | httpx |
+| Deployment | Hugging Face Spaces (Docker) |
+| Package Manager | uv |
+| Language | Python 3.11 |
 
 ---
 
-## API Reference
-
-The environment runs as a REST API on port 7860.
-
-### `GET /health`
-Returns `{"status": "ok"}` — used by the OpenEnv ping check.
-
-### `GET /tasks`
-Lists all available tasks with metadata.
-
-### `POST /reset`
-Start a new episode.
-```json
-Request:  {"task": "easy"}
-Response: {"observation": {...}, "message": "Environment reset. Task: easy"}
-```
-
-### `POST /step`
-Submit an action for the current email.
-```json
-Request:
-{
-  "priority": "urgent",
-  "category": "bug_report",
-  "response_draft": "We are investigating this immediately.",
-  "reasoning": "Production outage, enterprise client."
-}
-
-Response:
-{
-  "observation": {...},
-  "reward": 1.0,
-  "done": false,
-  "info": {
-    "email_id": "e4",
-    "ground_truth_priority": "urgent",
-    "ground_truth_category": "bug_report",
-    "reward_breakdown": {...},
-    "episode_mean_reward": 0.95
-  }
-}
-```
-
-### `GET /state`
-Returns the full internal environment state (for debugging/checkpointing).
-
-### `GET /score`
-Returns the current episode's mean reward score.
-
----
-
-## Setup & Usage
-
-### Local Python
-
-```bash
-# Clone the repo
-git clone https://huggingface.co/spaces/your-org/email-triage-openenv
-cd email-triage-openenv
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start the server
-uvicorn email_triage_env.server:app --host 0.0.0.0 --port 7860
-
-# In another terminal, run validation
-python validate.py
-
-# Run the baseline inference script
-export API_BASE_URL="https://api.openai.com/v1"
-export MODEL_NAME="gpt-4o-mini"
-export OPENAI_API_KEY="sk-..."
-python inference.py
-```
-
-### Docker
-
-```bash
-# Build
-docker build -t email-triage-openenv .
-
-# Run
-docker run -p 7860:7860 \
-  -e OPENAI_API_KEY=$OPENAI_API_KEY \
-  email-triage-openenv
-
-# Verify health
-curl http://localhost:7860/health
-# → {"status":"ok","env":"email-triage-openenv","version":"1.0.0"}
-```
-
-### Quick API test
-```bash
-# Reset
-curl -X POST http://localhost:7860/reset \
-  -H "Content-Type: application/json" \
-  -d '{"task": "easy"}'
-
-# Step
-curl -X POST http://localhost:7860/step \
-  -H "Content-Type: application/json" \
-  -d '{"priority": "urgent", "category": "bug_report", "response_draft": "We are on it.", "reasoning": "Production outage"}'
-```
-
----
-
-## Baseline Scores
-
-Measured with `gpt-4o-mini` at temperature 0.0:
-
-| Task | Score | Steps | Notes |
-|---|---|---|---|
-| easy | ~0.88 | 5 | Occasionally confuses internal vs. billing |
-| medium | ~0.72 | 8 | Security alerts sometimes miscategorized |
-| hard | ~0.61 | 10 | Response quality is the main challenge |
-| **Overall** | **~0.74** | 23 | — |
-
-A perfect oracle agent scores 1.0/1.0/1.0.
-
----
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 email-triage-openenv/
 ├── email_triage_env/
 │   ├── __init__.py        # Package exports
-│   ├── models.py          # Pydantic models: Observation, Action, Reward
-│   ├── dataset.py         # 23 curated real-world emails (5+8+10)
-│   ├── graders.py         # Deterministic graders for all 3 tasks
+│   ├── models.py          # Pydantic: Observation, Action, Reward
+│   ├── dataset.py         # 23 curated real-world emails
+│   ├── graders.py         # Deterministic graders (easy/medium/hard)
 │   ├── env.py             # EmailTriageEnv: reset/step/state
-│   └── server.py          # FastAPI server (OpenEnv HTTP API)
+│   └── server.py          # FastAPI HTTP server
+├── server/
+│   └── app.py             # Server entry point
 ├── tests/
-│   ├── conftest.py
 │   └── test_env.py        # Unit + integration tests
-├── app.py                 # HF Spaces entry point
-├── inference.py           # Baseline inference script (OpenAI client)
+├── inference.py           # Baseline agent script
 ├── validate.py            # Pre-submission validator
+├── pyproject.toml         # Project metadata
+├── uv.lock                # Locked dependencies
 ├── openenv.yaml           # OpenEnv spec
 ├── Dockerfile             # Container definition
-├── requirements.txt       # Python dependencies
 └── README.md
 ```
 
 ---
 
-## Environment Variables
+## 🚀 Quick Start
 
-| Variable | Description | Default |
-|---|---|---|
-| `API_BASE_URL` | LLM API endpoint | `https://api.openai.com/v1` |
-| `MODEL_NAME` | Model identifier | `gpt-4o-mini` |
-| `OPENAI_API_KEY` | API key for inference | — |
-| `HF_TOKEN` | Hugging Face token | — |
-| `ENV_BASE_URL` | Override env server URL | `http://localhost:7860` |
+```bash
+# Clone
+git clone https://huggingface.co/spaces/Hari15prasad/email-triage-openenv
+cd email-triage-openenv
+
+# Install
+pip install -r requirements.txt
+
+# Start server
+uvicorn email_triage_env.server:app --host 0.0.0.0 --port 7860
+
+# Run agent (in another terminal)
+export HF_TOKEN="your-groq-api-key"
+export API_BASE_URL="https://api.groq.com/openai/v1"
+export MODEL_NAME="llama-3.3-70b-versatile"
+python inference.py
+```
+
+### Docker
+```bash
+docker build -t email-triage-openenv .
+docker run -p 7860:7860 email-triage-openenv
+```
 
 ---
 
-## Evaluation Rubric Self-Assessment
+## 🔌 API Reference
 
-| Criterion | Weight | Notes |
+| Endpoint | Method | Description |
 |---|---|---|
-| Real-world utility | 30% | Email triage is a daily task in every support/ops org |
-| Task & grader quality | 25% | 3 tasks, deterministic graders, scores 0.0–1.0, difficulty progression |
-| Environment design | 20% | Clean state, partial reward, hidden labels, sensible episode boundaries |
-| Code quality & spec | 15% | Full OpenEnv interface, typed Pydantic models, Dockerfile, validate.py |
-| Creativity & novelty | 10% | Partial-credit priority scoring, mandatory response drafts on hard task |
+| `/health` | GET | Health check → `{"status":"ok"}` |
+| `/tasks` | GET | List all 3 tasks |
+| `/reset` | POST | Start new episode `{"task": "easy"}` |
+| `/step` | POST | Submit action, get reward |
+| `/state` | GET | Full internal state |
+| `/score` | GET | Current episode score |
+| `/docs` | GET | Interactive API explorer |
 
 ---
 
-## Tags
+## 🌱 Future Scope
 
-`openenv` `email` `triage` `nlp` `classification` `customer-support` `agent-evaluation`
+```
+Phase 1 (Current): OpenEnv RL training environment ✅
+Phase 2: Gmail/Outlook plugin for real inbox triage
+Phase 3: Auto task creation in Jira/Asana from emails
+Phase 4: Smart SLA deadline detection and escalation
+Phase 5: Multi-agent system (triage + responder + escalator)
+Phase 6: Fine-tuned small model (replace 70B with 7B)
+Phase 7: Enterprise deployment with audit trails
+```
 
+This environment is the **foundation layer** for building production-grade email automation systems. The reward function and graders can be directly used to fine-tune smaller, cheaper models for deployment.
 
+---
 
+## 📈 Reward Function Design
+
+```python
+# Priority: ordered scale with partial credit
+PRIORITY_ORDER = ["low", "normal", "high", "urgent"]
+PARTIAL_CREDIT = {0: 1.0, 1: 0.4, 2: 0.1, 3: 0.0}
+
+# Category: exact match only
+category_score = 1.0 if predicted == ground_truth else 0.0
+
+# Response quality (hard task):
+# +0.4 base, +0.2 length, +0.2 professional tone, +0.2 relevance
+
+# Final reward (hard task):
+reward = 0.35 * priority + 0.40 * category + 0.25 * response
+```
+
+---
+
+## 👤 Author
+
+**Hari Prasad R** — [Hari15prasad on HuggingFace](https://huggingface.co/Hari15prasad)
+
+*Scaler x Meta x PyTorch OpenEnv Hackathon — Round 1, April 2026*
